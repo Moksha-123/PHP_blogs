@@ -1,114 +1,126 @@
-<?php
-$host = "localhost";
-$user = "root";
-$password = "";
-$database = "php-test2";
-
-$conn = new mysqli($host, $user, $password, $database);
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-?>
-
+<?php require 'Database.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blogs</title>
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-    <div class="container mt-5">
-        <h2 class="text-center fs-1 text-dark">Blogs</h2>
 
-        <!-- Success & Error Messages -->
-        <div id="successMessage" class="alert alert-success d-none"></div>
-        <div id="errorMessage" class="alert alert-danger d-none"></div>
+    <div class="container mt-5 mb-5">
+        <h2 class="text-center fs-1 text-primary">Blogs</h2>
 
-        <!-- Blog Form -->
         <form id="blogForm" class="bg-white p-4 shadow-sm rounded mt-4">
             <input type="hidden" id="blog_id" name="blog_id">
             <div class="mb-3">
-                <label>Enter Blog Name</label>
+                <label class="form-label">Enter Blog Name</label>
                 <input type="text" id="blogname" name="blogname" class="form-control" required>
             </div>
             <div class="mb-3">
-                <label>Enter Author Name</label>
+                <label class="form-label">Enter Author Name</label>
                 <input type="text" id="authorname" name="authorname" class="form-control" required>
             </div>
             <div class="mb-3">
-                <label>Body</label>
-                <textarea id="body" name="body" class="form-control" rows="2" required></textarea>
+                <label class="form-label">Body</label>
+                <textarea id="body" name="body" class="form-control" required></textarea>
             </div>
             <button type="submit" class="btn btn-primary">Submit</button>
         </form>
 
-        <!-- Blog List -->
-        <div id="blogList" class="row mt-4"></div>
+        <div id="messageBox"></div>
+        <div id="blogList" class="row row-cols-1 row-cols-md-3 g-4 mt-2"></div>
     </div>
 
-    <!-- JavaScript -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            fetchBlogs();
+    fetchBlogs();
 
-            document.getElementById("blogForm").addEventListener("submit", function (e) {
-                e.preventDefault();
-                let formData = new FormData(this);
+    document.getElementById("blogForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        let formData = new FormData(this);
+        let isEditing = document.getElementById("blog_id").value;
+        let url = isEditing ? "edit.php" : "add.php";
 
-                fetch("add.php", {
-                    method: "POST",
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    showMessage(data.message, data.status);
-                    fetchBlogs();
-                    this.reset();
-                })
-                .catch(() => showMessage("Error adding blog.", "error"));
-            });
-        });
+        fetch(url, {
+            method: "POST",
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            showMessage(data.message, data.status);
 
-        function fetchBlogs() {
-            fetch("get.php")
-                .then(response => response.text())
-                .then(data => {
-                    document.getElementById("blogList").innerHTML = data;
-                });
-        }
-
-        function deleteBlog(id) {
-            if (confirm("Are you sure you want to delete this blog?")) {
-                fetch(`delete.php?id=${id}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        showMessage(data.message, data.status);
-                        fetchBlogs();
-                    });
+            if (isEditing) {
+                updateBlogInUI(data);  // Update UI without reload
+            } else {
+                fetchBlogs();  // Fetch new blogs if adding
             }
-        }
 
-        function showMessage(message, type) {
-    let messageElement = document.createElement("p");
-    messageElement.innerText = message;
-    messageElement.className = `alert ${type === "success" ? "alert-success" : "alert-danger"} text-center fw-bold`;
-    messageElement.style.position = "fixed";
-    messageElement.style.top = "10px";
-    messageElement.style.left = "50%";
-    messageElement.style.transform = "translateX(-50%)";
-    messageElement.style.zIndex = "1050";
-    messageElement.style.padding = "10px";
-    messageElement.style.width = "auto";
-    messageElement.style.maxWidth = "80%";
+            this.reset();
+            document.getElementById("blog_id").value = "";
+        })
+        .catch(() => showMessage("Error processing request.", "error"));
+    });
+});
 
-    document.body.appendChild(messageElement);
+// Fetch and display all blogs
+function fetchBlogs() {
+    fetch("get.php")
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById("blogList").innerHTML = data;
+        });
+}
 
-    setTimeout(() => {
-        messageElement.remove();
-    }, 3000);
+// Fetch a blog and populate form for editing
+function editBlog(id) {
+    fetch(`edit.php?id=${id}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById("blog_id").value = data.id;
+            document.getElementById("blogname").value = data.blog_name;
+            document.getElementById("authorname").value = data.author_name;
+            document.getElementById("body").value = data.body;
+            document.querySelector("button[type='submit']").textContent = "Update";
+        });
+}
+
+// Update the blog UI dynamically
+function updateBlogInUI(data) {
+    let blogCard = document.getElementById(`blog-${data.id}`);
+    if (blogCard) {
+        blogCard.innerHTML = `
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">${data.blog_name}</h5>
+                    <h6 class="card-subtitle text-muted">By ${data.author_name}</h6>
+                    <p class="card-text">${data.body}</p>
+                    <button class="btn btn-sm btn-warning" onclick="editBlog(${data.id})">Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteBlog(${data.id})">Delete</button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Delete a blog from the database and UI
+function deleteBlog(id) {
+    if (confirm("Are you sure you want to delete this blog?")) {
+        fetch(`delete.php?id=${id}`)
+            .then(response => response.json())
+            .then(data => {
+                showMessage(data.message, "error");
+                document.getElementById(`blog-${id}`).remove(); // Remove deleted blog from UI
+            });
+    }
+}
+
+// Show messages
+function showMessage(message, type) {
+    let messageBox = document.getElementById("messageBox");
+    messageBox.innerHTML = `<p class="alert ${type === 'success' ? 'alert-success' : 'alert-danger'} text-center fw-bold">${message}</p>`;
+    setTimeout(() => messageBox.innerHTML = "", 3000);
 }
 
     </script>
